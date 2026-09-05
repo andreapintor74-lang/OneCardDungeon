@@ -5,7 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>One Card Dungeon - Solitario Ufficiale Little Rocket Games</title>
-  <link rel="stylesheet" href="style.css?v=28">
+  <link rel="stylesheet" href="style.css?v=29">
 </head>
 
 <body>
@@ -21,6 +21,7 @@
         <div class="save-controls">
           <button id="btn-save-game" class="header-button" title="Salva partita">💾 Salva</button>
           <button id="btn-load-game" class="header-button" title="Carica partita">↥ Carica</button>
+          <button id="btn-new-game" class="header-button" title="Inizia una nuova partita">＋ Nuova</button>
           <button id="btn-new-from-sheet" class="header-button" title="Riprendi da una situazione annotata">＋ Da
             situazione</button>
         </div>
@@ -153,6 +154,7 @@
               <div class="stat-details">
                 <span class="stat-name">Gittata</span>
                 <span class="stat-val" id="stat-range">2</span>
+                <div id="assign-range" class="stat-assignment-slot hidden" data-ability="range"></div>
               </div>
             </div>
 
@@ -288,6 +290,9 @@
         <button id="btn-new-from-sheet-start" class="btn btn-secondary">
           Riprendi da situazione annotata
         </button>
+        <button id="btn-load-game-start" class="btn btn-secondary">
+          Carica partita salvata
+        </button>
       </div>
     </div>
 
@@ -325,10 +330,41 @@
       <div class="modal-dialog situation-dialog">
         <div class="modal-header">
           <h2>Carica partita</h2>
-          <p id="save-files-status">Seleziona un file salvato.</p>
+          <p id="save-files-status">Seleziona uno slot occupato.</p>
         </div>
-        <div id="save-files-list" class="save-files-list"></div>
+        <div id="load-slot-grid" class="save-slot-grid"></div>
         <button id="btn-cancel-save-files" class="btn btn-secondary">Annulla</button>
+      </div>
+    </div>
+
+    <div id="modal-save-game" class="modal-backdrop hidden">
+      <div class="modal-dialog situation-dialog">
+        <div class="modal-header">
+          <h2>Salva partita</h2>
+          <p>Dai un nome alla partita per poterla riconoscere quando la caricherai.</p>
+        </div>
+        <div id="save-slot-grid" class="save-slot-grid"></div>
+        <label class="save-name-field">
+          Nome partita
+          <input id="save-game-name" type="text" maxlength="80" autocomplete="off" placeholder="es. Orchi livello 3">
+        </label>
+        <div class="confirm-buttons">
+          <button id="btn-cancel-save-game" class="btn btn-secondary">Annulla</button>
+          <button id="btn-confirm-save-game" class="btn btn-action">💾 Salva</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-new-game" class="modal-backdrop hidden">
+      <div class="modal-dialog confirm-dialog">
+        <div class="confirm-icon">＋</div>
+        <h3>Nuova partita</h3>
+        <p>Vuoi salvare la partita corrente prima di iniziarne una nuova?</p>
+        <div class="confirm-buttons">
+          <button id="btn-cancel-new-game" class="btn btn-secondary">↩️ Annulla</button>
+          <button id="btn-new-game-without-save" class="btn btn-secondary">Nuova senza salvare</button>
+          <button id="btn-save-and-new-game" class="btn btn-action">💾 Salva e nuova</button>
+        </div>
       </div>
     </div>
 
@@ -396,6 +432,19 @@
       </div>
     </div>
 
+    <div id="modal-adventurer-ability" class="modal-backdrop hidden">
+      <div class="modal-dialog confirm-dialog">
+        <div class="confirm-icon" id="adventurer-ability-icon">✨</div>
+        <h3 id="adventurer-ability-title">Abilità dell'Avventuriero</h3>
+        <p id="adventurer-ability-description"></p>
+        <div id="adventurer-ability-options" class="ability-options"></div>
+        <div class="confirm-buttons">
+          <button id="btn-cancel-adventurer-ability" class="btn btn-secondary">↩️ Annulla</button>
+          <button id="btn-confirm-adventurer-ability" class="btn btn-action">✅ Attiva abilità</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Modale Game Over -->
     <div id="modal-game-over" class="modal-backdrop hidden">
       <div class="modal-dialog game-over-dialog">
@@ -427,7 +476,7 @@
 
   <!-- Script di Gioco: Prima levels.js, poi app.js -->
   <script src="levels.js?v=2"></script>
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=28"></script>
 </body>
 
 </html>

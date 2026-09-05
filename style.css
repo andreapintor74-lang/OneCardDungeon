@@ -179,12 +179,115 @@ body {
   border-color: var(--accent-gold);
 }
 
+.save-name-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.save-name-field input {
+  width: 100%;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-bright);
+  padding: 0.55rem 0.6rem;
+  font: inherit;
+}
+
+.save-name-field input:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+}
+
 .save-files-list {
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
   max-height: 260px;
   overflow-y: auto;
+}
+
+.save-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+  text-align: left;
+}
+
+.save-slot {
+  min-height: 58px;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border-highlight);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-main);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  overflow: hidden;
+  text-align: left;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.28);
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.save-slot:hover:not(:disabled),
+.save-slot.selected {
+  border-color: var(--accent-gold);
+  background: rgba(245, 158, 11, 0.14);
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.16);
+}
+
+.save-slot:disabled {
+  border-color: var(--border-subtle);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.save-slot-number {
+  display: inline-block;
+  color: var(--accent-gold);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.save-slot-name {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--text-bright);
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.save-slot-meta {
+  display: none;
+}
+
+.save-slot:disabled .save-slot-number {
+  color: var(--text-muted);
+}
+
+.save-slot:disabled .save-slot-name {
+  color: var(--border-highlight);
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .save-slot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .save-file-button {
@@ -492,6 +595,101 @@ body {
 
   100% {
     box-shadow: 0 0 16px rgba(239, 68, 68, 0.9);
+  }
+}
+
+.cell.hero-moving .cell-icon {
+  animation: heroMove 0.52s ease-out;
+}
+
+.cell.monster-moving .cell-icon {
+  animation: monsterMove 0.52s ease-out;
+}
+
+.cell.hero-attack-impact,
+.cell.monster-attack-impact {
+  z-index: 2;
+  animation: attackImpact 0.52s ease-out;
+}
+
+.cell.hero-attack-impact .cell-icon,
+.cell.monster-attack-impact .cell-icon {
+  animation: attackIcon 0.52s ease-out;
+}
+
+@keyframes heroMove {
+  0% {
+    transform: translateY(-8px) scale(0.82);
+    opacity: 0.35;
+  }
+
+  65% {
+    transform: translateY(2px) scale(1.12);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes monsterMove {
+  0% {
+    transform: translateX(-9px) scale(0.84);
+    opacity: 0.45;
+  }
+
+  55% {
+    transform: translateX(3px) scale(1.1);
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes attackImpact {
+  0% {
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+
+  25% {
+    box-shadow: 0 0 20px rgba(255, 214, 92, 0.95);
+  }
+
+  100% {
+    box-shadow: 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+@keyframes attackIcon {
+  0% {
+    transform: scale(1);
+  }
+
+  20% {
+    transform: scale(1.28) rotate(-8deg);
+  }
+
+  45% {
+    transform: scale(0.88) rotate(8deg);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .cell.hero-moving .cell-icon,
+  .cell.monster-moving .cell-icon,
+  .cell.hero-attack-impact,
+  .cell.monster-attack-impact,
+  .cell.hero-attack-impact .cell-icon,
+  .cell.monster-attack-impact .cell-icon {
+    animation: none;
   }
 }
 
@@ -1311,6 +1509,32 @@ body {
   flex: 1;
   padding: 0.65rem 0.9rem;
   font-size: 0.88rem;
+}
+
+.ability-options {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0.35rem 0;
+}
+
+.ability-die-choice {
+  border: 1px solid var(--border-highlight);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-main);
+  cursor: pointer;
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  font-weight: 700;
+}
+
+.ability-die-choice:hover,
+.ability-die-choice.selected {
+  border-color: var(--accent-gold);
+  background: rgba(245, 158, 11, 0.18);
+  color: var(--accent-gold);
 }
 
 /* Evidenziazione Bersaglio in attesa di conferma sulla plancia */

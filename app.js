@@ -42,12 +42,13 @@ const gameState = {
   turn: {
     phase: "ENERGY", // "ENERGY" | "ASSIGNMENT" | "ADVENTURER_PHASE" | "MONSTER_TURN"
     energyDice: [null, null, null],
-    assignedDice: { speed: null, attack: null, defense: null },
+    assignedDice: { speed: null, attack: null, defense: null, range: null },
     remainingSpeed: 0,
     remainingAttack: 0,
     currentDefense: 0,
     rangeBonus: 0,
-    classAbilityUsedThisTurn: false
+    classAbilityUsedThisTurn: false,
+    rangerAbilityActiveThisTurn: false
   },
 
   // Tracciamento abilità speciali di classe (una volta per livello)
@@ -55,10 +56,21 @@ const gameState = {
   savedEnergyDie: null,
 
   // Azione attualmente in attesa di conferma del giocatore
-  pendingAction: null
+  pendingAction: null,
+  pendingAbility: null
+};
+
+const HERO_CLASS_ICONS = {
+  Warrior: "⚔️",
+  Paladin: "✨",
+  Barbarian: "🪓",
+  Ranger: "🏹",
+  Wizard: "🔮"
 };
 
 let saveDirectoryHandle = null;
+let pendingSaveNameResolver = null;
+let selectedSaveSlot = null;
 
 /* ==========================================================================
    2. MOTORE GEOMETRICO: MOVIMENTO, GITTATA E LINE OF SIGHT (LOS)
@@ -337,7 +349,7 @@ const BoardRenderer = {
           cell.classList.add("cell-hero");
           const iconSpan = document.createElement("span");
           iconSpan.className = "cell-icon";
-          iconSpan.textContent = "🧝";
+          iconSpan.textContent = HERO_CLASS_ICONS[gameState.heroClass] || HERO_CLASS_ICONS.Warrior;
           cell.appendChild(iconSpan);
 
           // Dado Verde Salute Eroe
@@ -414,6 +426,17 @@ const BoardRenderer = {
 
     const aliveCount = gameState.monsters.filter((m) => m.hp > 0).length;
     document.getElementById("dungeon-status").textContent = `Nemici Rimasti: ${aliveCount}`;
+  },
+
+  animateCells(cells, className, duration = 520) {
+    cells.forEach(({ r, c }) => {
+      const cell = document.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+      if (!cell) return;
+      cell.classList.remove(className);
+      void cell.offsetWidth;
+      cell.classList.add(className);
+      setTimeout(() => cell.classList.remove(className), duration);
+    });
   }
 };
 
@@ -581,6 +604,9 @@ const AppController = {
       btnCancelAction.addEventListener("click", () => this.cancelPendingAction());
     }
 
+    document.getElementById("btn-confirm-adventurer-ability").addEventListener("click", () => this.confirmAdventurerAbility());
+    document.getElementById("btn-cancel-adventurer-ability").addEventListener("click", () => this.cancelAdventurerAbility());
+
     // 7. Pulisci Log
     const btnClearLog = document.getElementById("btn-clear-log");
     if (btnClearLog) {
@@ -591,6 +617,19 @@ const AppController = {
 
     document.getElementById("btn-save-game").addEventListener("click", () => this.saveGame());
     document.getElementById("btn-load-game").addEventListener("click", () => this.loadGame());
+    document.getElementById("btn-cancel-save-game").addEventListener("click", () => this.resolveSaveName(null));
+    document.getElementById("btn-confirm-save-game").addEventListener("click", () => {
+      const name = document.getElementById("save-game-name").value.trim();
+      if (name && selectedSaveSlot !== null) this.resolveSaveName({ name, slot: selectedSaveSlot });
+    });
+    document.getElementById("save-game-name").addEventListener("keydown", (event) => {
+      if (event.key === "Enter") document.getElementById("btn-confirm-save-game").click();
+      if (event.key === "Escape") this.resolveSaveName(null);
+    });
+    document.getElementById("btn-new-game").addEventListener("click", () => this.openNewGameModal());
+    document.getElementById("btn-cancel-new-game").addEventListener("click", () => this.cancelNewGame());
+    document.getElementById("btn-new-game-without-save").addEventListener("click", () => this.startNewGame());
+    document.getElementById("btn-save-and-new-game").addEventListener("click", () => this.saveAndStartNewGame());
     document.getElementById("btn-cancel-save-files").addEventListener("click", () => {
       document.getElementById("modal-save-files").classList.add("hidden");
     });
@@ -601,6 +640,7 @@ const AppController = {
       document.getElementById("modal-class-select").classList.add("hidden");
       document.getElementById("modal-existing-situation").classList.remove("hidden");
     });
+    document.getElementById("btn-load-game-start").addEventListener("click", () => this.loadGame());
     document.getElementById("btn-cancel-situation").addEventListener("click", () => {
       document.getElementById("modal-existing-situation").classList.add("hidden");
     });
@@ -637,17 +677,22 @@ const AppController = {
   resetTurnToEnergyPhase() {
     gameState.turn.phase = "ENERGY";
     gameState.turn.energyDice = [null, null, null];
-    gameState.turn.assignedDice = { speed: null, attack: null, defense: null };
+    gameState.turn.assignedDice = { speed: null, attack: null, defense: null, range: null };
     gameState.turn.remainingSpeed = 0;
     gameState.turn.remainingAttack = 0;
     gameState.turn.currentDefense = 0;
     gameState.turn.rangeBonus = 0;
     gameState.turn.classAbilityUsedThisTurn = false;
+    gameState.turn.rangerAbilityActiveThisTurn = false;
+    gameState.pendingAbility = null;
+    document.getElementById("modal-adventurer-ability").classList.add("hidden");
 
     document.getElementById("current-phase").textContent = "Fase Energia";
     document.getElementById("btn-roll-dice").disabled = false;
     document.getElementById("action-points-bar").classList.add("hidden");
     document.getElementById("action-hint").classList.add("hidden");
+    document.getElementById("btn-end-hero-turn").disabled = true;
+    document.getElementById("assign-range").classList.add("hidden");
 
     [0, 1, 2].forEach((i) => {
       const dieEl = document.getElementById(`die-${i}`);
@@ -694,17 +739,33 @@ const AppController = {
       this.log(`Tiro Dadi Energia: [${results.join(" - ")}]`, "warning");
       gameState.turn.phase = "ASSIGNMENT";
       document.getElementById("current-phase").textContent = "Assegnazione Dadi";
+      document.getElementById("action-points-bar").classList.remove("hidden");
 
       this.renderDiceAssignments();
+      this.updateAdventurerAbilityButton();
+      document.getElementById("btn-toggle-help").disabled = true;
+      document.getElementById("btn-end-hero-turn").disabled = true;
       this.log("Assegna un dado a Movimento, uno ad Attacco e uno a Difesa.", "info");
     });
   },
 
+  updateAdventurerAbilityButton() {
+    const abilityButton = document.getElementById("btn-use-adventurer-ability");
+    if (!abilityButton) return;
+
+    const phaseAllowsAbility = ["ASSIGNMENT", "ADVENTURER_PHASE"].includes(gameState.turn.phase);
+    const usedForLevel = ["Paladin", "Ranger", "Wizard"].includes(gameState.heroClass) && gameState.classAbilityUsedThisLevel;
+    const barbarianUnavailable = gameState.heroClass === "Barbarian" &&
+      (gameState.hero.hp !== 1 || gameState.turn.classAbilityUsedThisTurn);
+    const rangerUnavailable = gameState.heroClass === "Ranger" && gameState.turn.phase !== "ASSIGNMENT";
+
+    abilityButton.disabled = !phaseAllowsAbility || gameState.heroClass === "Warrior" || usedForLevel || barbarianUnavailable || rangerUnavailable;
+  },
+
   useAdventurerAbility() {
-    if (gameState.turn.phase !== "ADVENTURER_PHASE") return;
+    if (!["ASSIGNMENT", "ADVENTURER_PHASE"].includes(gameState.turn.phase)) return;
 
     const abilityButton = document.getElementById("btn-use-adventurer-ability");
-    const assigned = gameState.turn.assignedDice;
 
     if (gameState.heroClass === "Warrior") {
       this.log("⚔️ Il Guerriero standard non ha un'abilità speciale.", "info");
@@ -712,57 +773,105 @@ const AppController = {
       return;
     }
 
-    if (gameState.heroClass === "Barbarian") {
-      if (gameState.hero.hp !== 1 || gameState.turn.classAbilityUsedThisTurn) {
-        this.log("🪓 Il Barbaro può ritirare i dadi solo a 1 HP e una volta per turno.", "warning");
-        return;
-      }
-      gameState.turn.classAbilityUsedThisTurn = true;
-      this.rerollFromAbility("Barbaro", false);
-      return;
+    this.openAdventurerAbilityModal();
+  },
+
+  openAdventurerAbilityModal() {
+    const modal = document.getElementById("modal-adventurer-ability");
+    const options = document.getElementById("adventurer-ability-options");
+    const confirmButton = document.getElementById("btn-confirm-adventurer-ability");
+    const title = document.getElementById("adventurer-ability-title");
+    const description = document.getElementById("adventurer-ability-description");
+    const icon = document.getElementById("adventurer-ability-icon");
+    if (!modal || !options || !confirmButton) return;
+
+    gameState.pendingAbility = { heroClass: gameState.heroClass, selectedDie: null };
+    options.innerHTML = "";
+    confirmButton.disabled = false;
+
+    if (gameState.heroClass === "Paladin") {
+      icon.textContent = "✨";
+      title.textContent = "Abilità del Paladino";
+      description.textContent = "Scegli un dado Energia da conservare per il prossimo turno. Puoi annullare senza consumare l'abilità.";
+      gameState.turn.energyDice.forEach((value, index) => {
+        const dieButton = document.createElement("button");
+        dieButton.className = "ability-die-choice";
+        dieButton.type = "button";
+        dieButton.textContent = `Dado ${index + 1}: ${value}`;
+        dieButton.addEventListener("click", () => {
+          gameState.pendingAbility.selectedDie = index;
+          options.querySelectorAll(".ability-die-choice").forEach((button) => button.classList.remove("selected"));
+          dieButton.classList.add("selected");
+          confirmButton.disabled = false;
+        });
+        options.appendChild(dieButton);
+      });
+      confirmButton.disabled = true;
+    } else if (gameState.heroClass === "Ranger") {
+      icon.textContent = "🏹";
+      title.textContent = "Abilità del Ranger";
+      description.textContent = "Attiva una zona Gittata aggiuntiva. Dopo la conferma potrai trascinarvi un dado al posto del dado Movimento.";
+    } else if (gameState.heroClass === "Barbarian") {
+      icon.textContent = "🪓";
+      title.textContent = "Abilità del Barbaro";
+      description.textContent = "A 1 HP puoi ritirare tutti i dadi Energia una volta per turno. Il ritiro sostituirà i dadi attuali.";
+    } else if (gameState.heroClass === "Wizard") {
+      icon.textContent = "🔮";
+      title.textContent = "Abilità del Mago";
+      description.textContent = "Puoi ritirare tutti e tre i dadi Energia una volta per livello. Il ritiro sostituirà i dadi attuali.";
     }
 
-    if (gameState.heroClass === "Wizard") {
-      if (gameState.classAbilityUsedThisLevel) return;
+    modal.classList.remove("hidden");
+  },
+
+  cancelAdventurerAbility() {
+    gameState.pendingAbility = null;
+    document.getElementById("modal-adventurer-ability").classList.add("hidden");
+  },
+
+  confirmAdventurerAbility() {
+    const pendingAbility = gameState.pendingAbility;
+    if (!pendingAbility) return;
+
+    const heroClass = pendingAbility.heroClass;
+    if (heroClass === "Paladin") {
+      if (pendingAbility.selectedDie === null) return;
+      gameState.savedEnergyDie = gameState.turn.energyDice[pendingAbility.selectedDie];
       gameState.classAbilityUsedThisLevel = true;
+      this.log(`✨ Il Paladino conserva il dado Energia ${gameState.savedEnergyDie} per il prossimo turno.`, "success");
+    } else if (heroClass === "Ranger") {
+      gameState.turn.rangerAbilityActiveThisTurn = true;
+      gameState.classAbilityUsedThisLevel = true;
+      document.getElementById("assign-range").classList.remove("hidden");
+      this.log("🏹 Trascina un dado nella nuova zona Gittata: sostituirà il dado Movimento.", "success");
+    } else if (heroClass === "Barbarian") {
+      gameState.turn.classAbilityUsedThisTurn = true;
+      this.cancelAdventurerAbility();
+      this.rerollFromAbility("Barbaro", false);
+      return;
+    } else if (heroClass === "Wizard") {
+      gameState.classAbilityUsedThisLevel = true;
+      this.cancelAdventurerAbility();
       this.rerollFromAbility("Mago", true);
       return;
     }
 
-    if (gameState.heroClass === "Paladin") {
-      if (gameState.classAbilityUsedThisLevel) return;
-      const values = Object.values(assigned)
-        .filter((index) => index !== null)
-        .map((index) => gameState.turn.energyDice[index]);
-      if (values.length === 0) return;
-      gameState.savedEnergyDie = Math.max(...values);
-      gameState.classAbilityUsedThisLevel = true;
-      if (abilityButton) abilityButton.disabled = true;
-      this.log(`✨ Il Paladino conserva il dado Energia ${gameState.savedEnergyDie} per il prossimo turno.`, "success");
-      return;
-    }
-
-    if (gameState.heroClass === "Ranger") {
-      if (gameState.classAbilityUsedThisLevel || assigned.speed === null) return;
-      gameState.turn.rangeBonus = gameState.turn.energyDice[assigned.speed];
-      gameState.turn.remainingSpeed = gameState.hero.speed;
-      gameState.classAbilityUsedThisLevel = true;
-      if (abilityButton) abilityButton.disabled = true;
-      this.updateRangeUI();
-      this.log(`🏹 Il Ranger assegna ${gameState.turn.rangeBonus} alla Gittata invece che al Movimento.`, "success");
-      BoardRenderer.render();
-    }
+    this.cancelAdventurerAbility();
+    this.updateAdventurerAbilityButton();
+    this.renderDiceAssignments();
   },
 
   rerollFromAbility(className, oncePerLevel) {
     gameState.turn.phase = "ASSIGNMENT";
-    gameState.turn.assignedDice = { speed: null, attack: null, defense: null };
+    gameState.turn.assignedDice = { speed: null, attack: null, defense: null, range: null };
     document.getElementById("current-phase").textContent = "Assegnazione Dadi";
     document.getElementById("action-points-bar").classList.add("hidden");
     document.getElementById("action-hint").classList.add("hidden");
+    document.getElementById("btn-end-hero-turn").disabled = true;
     document.getElementById("btn-roll-dice").disabled = true;
     DiceEngine.rollEnergyDice((results) => {
       this.renderDiceAssignments();
+      this.updateAdventurerAbilityButton();
       this.log(`🔁 ${className}: nuovi dadi Energia [${results.join(" - ")}].`, "warning");
     });
   },
@@ -779,23 +888,32 @@ const AppController = {
   },
 
   assignDieToAbility(index, ability) {
-    if (gameState.turn.phase !== "ASSIGNMENT" || !Number.isInteger(index) || !["speed", "attack", "defense"].includes(ability)) return;
+    const validAbility = ["speed", "attack", "defense"].includes(ability) ||
+      (ability === "range" && gameState.heroClass === "Ranger" && gameState.turn.rangerAbilityActiveThisTurn);
+    if (gameState.turn.phase !== "ASSIGNMENT" || !Number.isInteger(index) || !validAbility) return;
 
     Object.keys(gameState.turn.assignedDice).forEach((key) => {
       if (gameState.turn.assignedDice[key] === index) gameState.turn.assignedDice[key] = null;
     });
     gameState.turn.assignedDice[ability] = index;
+    if (gameState.turn.rangerAbilityActiveThisTurn) {
+      const rangeIndex = gameState.turn.assignedDice.range;
+      gameState.turn.rangeBonus = rangeIndex === null ? 0 : gameState.turn.energyDice[rangeIndex];
+      this.updateRangeUI();
+    }
     this.renderDiceAssignments();
   },
 
   clearDiceAssignment() {
     if (gameState.turn.phase !== "ASSIGNMENT") return;
-    gameState.turn.assignedDice = { speed: null, attack: null, defense: null };
+    gameState.turn.assignedDice = { speed: null, attack: null, defense: null, range: null };
+    gameState.turn.rangeBonus = 0;
+    this.updateRangeUI();
     this.renderDiceAssignments();
   },
 
   renderDiceAssignments() {
-    const abilityIds = { speed: "assign-speed", attack: "assign-attack", defense: "assign-defense" };
+    const abilityIds = { speed: "assign-speed", attack: "assign-attack", defense: "assign-defense", range: "assign-range" };
     const assigned = gameState.turn.assignedDice;
 
     Object.entries(abilityIds).forEach(([ability, id]) => {
@@ -824,7 +942,7 @@ const AppController = {
   },
 
   updateAssignmentTotals() {
-    const { speed: sIdx, attack: aIdx, defense: dIdx } = gameState.turn.assignedDice;
+    const { speed: sIdx, attack: aIdx, defense: dIdx, range: rIdx } = gameState.turn.assignedDice;
 
     const totSpeed = gameState.hero.speed + (sIdx !== null ? gameState.turn.energyDice[sIdx] : 0);
     const totAttack = gameState.hero.attack + (aIdx !== null ? gameState.turn.energyDice[aIdx] : 0);
@@ -868,18 +986,19 @@ const AppController = {
       }
     }
 
-    const allAssigned = [sIdx, aIdx, dIdx].every((index) => index !== null);
-    document.getElementById("btn-confirm-turn").disabled = !allAssigned;
+    const requiredDice = gameState.turn.rangerAbilityActiveThisTurn ? [rIdx, aIdx, dIdx] : [sIdx, aIdx, dIdx];
+    const allAssigned = requiredDice.every((index) => index !== null);
+    document.getElementById("btn-confirm-turn").disabled = gameState.turn.phase !== "ASSIGNMENT" || !allAssigned;
     const clearButton = document.getElementById("btn-clear-assignment");
     if (clearButton) {
-      clearButton.disabled = gameState.turn.phase !== "ASSIGNMENT" || ![sIdx, aIdx, dIdx].some((index) => index !== null);
+      clearButton.disabled = gameState.turn.phase !== "ASSIGNMENT" || !Object.values(gameState.turn.assignedDice).some((index) => index !== null);
     }
   },
 
   handleConfirmTurn() {
     const { speed, attack, defense } = gameState.turn.assignedDice;
 
-    gameState.turn.remainingSpeed = gameState.hero.speed + gameState.turn.energyDice[speed];
+    gameState.turn.remainingSpeed = gameState.hero.speed + (speed === null ? 0 : gameState.turn.energyDice[speed]);
     gameState.turn.remainingAttack = gameState.hero.attack + gameState.turn.energyDice[attack];
     gameState.turn.currentDefense = gameState.hero.defense + gameState.turn.energyDice[defense];
 
@@ -893,12 +1012,8 @@ const AppController = {
     this.renderDiceAssignments();
     const helpButton = document.getElementById("btn-toggle-help");
     if (helpButton) helpButton.disabled = false;
-    const abilityButton = document.getElementById("btn-use-adventurer-ability");
-    if (abilityButton) {
-      const usedForLevel = ["Paladin", "Ranger", "Wizard"].includes(gameState.heroClass) && gameState.classAbilityUsedThisLevel;
-      const barbarianUnavailable = gameState.heroClass === "Barbarian" && (gameState.hero.hp !== 1 || gameState.turn.classAbilityUsedThisTurn);
-      abilityButton.disabled = gameState.heroClass === "Warrior" || usedForLevel || barbarianUnavailable;
-    }
+    document.getElementById("btn-end-hero-turn").disabled = false;
+    this.updateAdventurerAbilityButton();
 
     this.updateActionPointsBar();
     document.getElementById("action-points-bar").classList.remove("hidden");
@@ -1022,6 +1137,7 @@ const AppController = {
     this.log(`🏃 Eroe mosso in [${targetCoord}] (-${cost} pt movimento, Rimanenti: ${gameState.turn.remainingSpeed})`, "info");
     this.updateActionPointsBar();
     BoardRenderer.render();
+    BoardRenderer.animateCells([{ r: row, c: col }], "hero-moving");
   },
 
   prepareHeroAttack(monster, coord) {
@@ -1087,12 +1203,14 @@ const AppController = {
       const allDead = gameState.monsters.every((m) => m.hp <= 0);
       if (allDead) {
         BoardRenderer.render();
+        BoardRenderer.animateCells([{ r: monster.r, c: monster.c }], "hero-attack-impact");
         setTimeout(() => this.handleLevelVictory(), 600);
         return;
       }
     }
 
     BoardRenderer.render();
+    BoardRenderer.animateCells([{ r: monster.r, c: monster.c }], "hero-attack-impact");
   },
 
   /**
@@ -1117,11 +1235,16 @@ const AppController = {
     });
 
     // 1. MOVIMENTO DI CIASCUN MOSTRO
+    const movedMonsterIds = [];
     aliveMonsters.forEach((m) => {
-      this.moveMonsterAI(m, currentLevel);
+      if (this.moveMonsterAI(m, currentLevel)) movedMonsterIds.push(m.id);
     });
 
     BoardRenderer.render();
+    BoardRenderer.animateCells(
+      aliveMonsters.filter((m) => movedMonsterIds.includes(m.id)).map((m) => ({ r: m.r, c: m.c })),
+      "monster-moving"
+    );
 
     // 2. ATTACCO COMBINATO
     setTimeout(() => {
@@ -1188,7 +1311,10 @@ const AppController = {
       monster.r = bestCandidate.r;
       monster.c = bestCandidate.c;
       this.log(`👹 ${monster.name} si riposiziona in [${colLabels[monster.c]}${monster.r + 1}]`, "info");
+      return true;
     }
+
+    return false;
   },
 
   /**
@@ -1220,6 +1346,10 @@ const AppController = {
     const attackerNames = attackers.map((monster) => monster.name).join(", ");
     this.showEnemyAttackNotice(
       `${attackerNames} attaccano: ${totalMonsterAttack} Attacco contro ${heroDefense} Difesa. Danno: ${damage}.`
+    );
+    BoardRenderer.animateCells(
+      [{ r: gameState.hero.pos.r, c: gameState.hero.pos.c }, ...attackers.map((m) => ({ r: m.r, c: m.c }))],
+      "monster-attack-impact"
     );
 
     if (damage <= 0) {
@@ -1317,65 +1447,106 @@ const AppController = {
   },
 
   async saveGame() {
-    if (!window.showDirectoryPicker) {
-      this.log("⚠️ Il browser non permette di creare file nella cartella.", "warning");
-      return;
-    }
+    const details = await this.requestSaveName();
+    if (!details) return false;
 
-    const name = window.prompt("Nome della partita salvata:", "partita");
-    if (!name) return;
+    const saves = this.getSaveSlots();
+    saves[details.slot] = {
+      name: details.name,
+      savedAt: new Date().toISOString(),
+      gameState: JSON.parse(JSON.stringify({ ...gameState, pendingAction: null }))
+    };
+    localStorage.setItem("one-card-dungeon-save-slots", JSON.stringify(saves));
+    this.log(`💾 Partita "${details.name}" salvata nello slot ${details.slot + 1}.`, "success");
+    return true;
+  },
 
+  getSaveSlots() {
     try {
-      if (!saveDirectoryHandle) saveDirectoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
-      const saveName = name.trim() || "partita";
-      const fileHandle = await saveDirectoryHandle.getFileHandle("partite salvate.json", { create: true });
-      let saves = [];
-      try {
-        const existingFile = await fileHandle.getFile();
-        const existing = JSON.parse(await existingFile.text());
-        if (Array.isArray(existing.saves)) saves = existing.saves;
-      } catch (error) {
-        saves = [];
-      }
-      saves = saves.filter((save) => save.name !== saveName);
-      const writable = await fileHandle.createWritable();
-      const saveState = JSON.parse(JSON.stringify({ ...gameState, pendingAction: null }));
-      saves.push({ name: saveName, savedAt: new Date().toISOString(), gameState: saveState });
-      await writable.write(JSON.stringify({ version: 3, saves }, null, 2));
-      await writable.close();
-      this.log(`💾 Partita "${saveName}" salvata in partite salvate.json.`, "success");
+      const saves = JSON.parse(localStorage.getItem("one-card-dungeon-save-slots") || "[]");
+      return Array.from({ length: 5 }, (_, index) => saves[index] || null);
     } catch (error) {
-      this.log("⚠️ Salvataggio annullato o cartella non accessibile.", "warning");
+      return Array(5).fill(null);
     }
   },
 
-  async loadGame() {
-    if (!window.showDirectoryPicker) {
-      this.log("⚠️ Il browser non permette di leggere i file dalla cartella.", "warning");
-      return;
-    }
+  renderSaveSlots(containerId, mode) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.innerHTML = "";
 
-    try {
-      saveDirectoryHandle = await window.showDirectoryPicker({ mode: "read" });
-      const fileHandle = await saveDirectoryHandle.getFileHandle("partite salvate.json");
-      const file = await fileHandle.getFile();
-      const saveDocument = JSON.parse(await file.text());
-      const saves = Array.isArray(saveDocument.saves) ? saveDocument.saves : [];
-      const list = document.getElementById("save-files-list");
-      const status = document.getElementById("save-files-status");
-      list.innerHTML = "";
-      status.textContent = saves.length ? "Scegli una partita salvata." : "Nessuna partita salvata trovata.";
-      saves.sort((a, b) => a.name.localeCompare(b.name)).forEach((save) => {
-        const button = document.createElement("button");
-        button.className = "save-file-button";
-        button.textContent = `${save.name} (${new Date(save.savedAt).toLocaleString("it-IT")})`;
-        button.addEventListener("click", () => this.loadSavedEntry(save));
-        list.appendChild(button);
-      });
-      document.getElementById("modal-save-files").classList.remove("hidden");
-    } catch (error) {
-      this.log("📂 Caricamento annullato o cartella non accessibile.", "warning");
-    }
+    this.getSaveSlots().forEach((save, index) => {
+      const slot = document.createElement("button");
+      slot.type = "button";
+      slot.className = "save-slot";
+      slot.innerHTML = `<span class="save-slot-number">Slot ${index + 1}</span>` +
+        `<span class="save-slot-name">${save ? save.name : "Vuoto"}</span>` +
+        `<span class="save-slot-meta">${save ? new Date(save.savedAt).toLocaleString("it-IT") : "Nessuna partita"}</span>`;
+
+      if (mode === "save") {
+        slot.classList.toggle("selected", selectedSaveSlot === index);
+        slot.addEventListener("click", () => {
+          selectedSaveSlot = index;
+          document.getElementById("btn-confirm-save-game").disabled = !document.getElementById("save-game-name").value.trim();
+          this.renderSaveSlots(containerId, mode);
+        });
+      } else if (save) {
+        slot.addEventListener("click", () => this.loadSavedEntry(save));
+      } else {
+        slot.disabled = true;
+      }
+      container.appendChild(slot);
+    });
+  },
+
+  requestSaveName() {
+    const modal = document.getElementById("modal-save-game");
+    const input = document.getElementById("save-game-name");
+    selectedSaveSlot = null;
+    this.renderSaveSlots("save-slot-grid", "save");
+    document.getElementById("btn-confirm-save-game").disabled = true;
+    modal.classList.remove("hidden");
+    input.value = "";
+    input.focus();
+    return new Promise((resolve) => {
+      pendingSaveNameResolver = resolve;
+    });
+  },
+
+  resolveSaveName(name) {
+    if (!pendingSaveNameResolver) return;
+    const resolve = pendingSaveNameResolver;
+    pendingSaveNameResolver = null;
+    document.getElementById("modal-save-game").classList.add("hidden");
+    resolve(name);
+  },
+
+  openNewGameModal() {
+    document.getElementById("modal-new-game").classList.remove("hidden");
+  },
+
+  cancelNewGame() {
+    document.getElementById("modal-new-game").classList.add("hidden");
+  },
+
+  startNewGame() {
+    this.cancelNewGame();
+    this.restartGame();
+  },
+
+  async saveAndStartNewGame() {
+    const saved = await this.saveGame();
+    if (saved) this.startNewGame();
+  },
+
+  async loadGame() {
+    const saves = this.getSaveSlots();
+    const count = saves.filter(Boolean).length;
+    document.getElementById("save-files-status").textContent = count
+      ? `${count} slot occupat${count === 1 ? "o" : "i"}. Scegli una partita.`
+      : "Nessuna partita salvata negli slot.";
+    this.renderSaveSlots("load-slot-grid", "load");
+    document.getElementById("modal-save-files").classList.remove("hidden");
   },
 
   loadSavedEntry(save) {
@@ -1398,6 +1569,9 @@ const AppController = {
     gameState.pendingAction = null;
     const level = DUNGEON_LEVELS[gameState.levelIndex];
     if (!level) throw new Error("Livello non valido");
+    if (!gameState.monsters.length && level.monsters.length) {
+      gameState.monsters = level.monsters.map((monster) => ({ ...monster, maxHp: monster.hp }));
+    }
     document.getElementById("modal-class-select").classList.add("hidden");
     document.getElementById("modal-game-over").classList.add("hidden");
     document.getElementById("modal-victory").classList.add("hidden");
@@ -1466,24 +1640,25 @@ const AppController = {
     const actionBar = document.getElementById("action-points-bar");
     const actionHint = document.getElementById("action-hint");
     const rollButton = document.getElementById("btn-roll-dice");
-    const abilityButton = document.getElementById("btn-use-adventurer-ability");
     const helpButton = document.getElementById("btn-toggle-help");
 
-    actionBar.classList.toggle("hidden", phase !== "ADVENTURER_PHASE");
+    actionBar.classList.toggle("hidden", !["ASSIGNMENT", "ADVENTURER_PHASE"].includes(phase));
     actionHint.classList.add("hidden");
     rollButton.disabled = phase !== "ENERGY";
+    document.getElementById("btn-end-hero-turn").disabled = phase !== "ADVENTURER_PHASE";
+    document.getElementById("assign-range").classList.toggle("hidden", !gameState.turn.rangerAbilityActiveThisTurn);
     if (phase === "ASSIGNMENT" || phase === "ADVENTURER_PHASE") this.renderDiceAssignments();
     if (phase === "ADVENTURER_PHASE") {
       this.updateActionPointsBar();
-      abilityButton.disabled = gameState.heroClass === "Warrior";
       helpButton.disabled = false;
     } else {
-      abilityButton.disabled = true;
       helpButton.disabled = true;
     }
+    this.updateAdventurerAbilityButton();
   },
 
   restartGame() {
+    document.getElementById("modal-new-game").classList.add("hidden");
     document.getElementById("modal-game-over").classList.add("hidden");
     document.getElementById("modal-victory").classList.add("hidden");
 
@@ -1496,6 +1671,12 @@ const AppController = {
       range: 2,
       pos: { r: 4, c: 0 }
     };
+
+    gameState.heroClass = "Warrior";
+    gameState.classAbilityUsedThisLevel = false;
+    gameState.savedEnergyDie = null;
+    gameState.pendingAction = null;
+    gameState.pendingAbility = null;
 
     this.showClassSelectModal();
   },
