@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="it">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>One Card Dungeon - Solitario Ufficiale Little Rocket Games</title>
+  <link rel="stylesheet" href="style.css?v=28">
+</head>
+
+<body>
+  <div id="app">
+    <!-- Intestazione Principale -->
+    <header class="game-header">
+      <div class="logo-area">
+        <h1>⚔️ ONE CARD DUNGEON</h1>
+        <span class="subtitle">Solo Dice-Placement Dungeon Crawl</span>
+        <span id="level-title" class="header-level-title">🗺️ Livello 1: Nido di Ragni</span>
+      </div>
+      <div class="header-status">
+        <div class="save-controls">
+          <button id="btn-save-game" class="header-button" title="Salva partita">💾 Salva</button>
+          <button id="btn-load-game" class="header-button" title="Carica partita">↥ Carica</button>
+          <button id="btn-new-from-sheet" class="header-button" title="Riprendi da una situazione annotata">＋ Da
+            situazione</button>
+        </div>
+        <div class="level-indicator">
+          <span class="label">Carta:</span>
+          <span id="current-level" class="badge">Livello 1 / 12</span>
+        </div>
+        <div class="phase-indicator">
+          <span class="label">Fase:</span>
+          <span id="current-phase" class="badge badge-phase">Fase Energia</span>
+        </div>
+        <div class="class-indicator">
+          <span class="label">Classe:</span>
+          <span id="hero-class-badge" class="badge badge-class">Guerriero</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Layout Principale a Due Colonne -->
+    <main class="game-container">
+
+      <!-- Area Sinistra: Plancia della Carta Dungeon (5x5) -->
+      <section id="dungeon-container" class="panel dungeon-panel">
+        <!-- Griglia di Gioco 5x5 -->
+        <div class="board-wrapper">
+          <div id="dungeon-board" class="dungeon-grid">
+            <!-- 25 caselle generate dinamicamente da app.js -->
+          </div>
+        </div>
+
+        <div id="action-points-bar" class="action-points-bar hidden">
+          <div class="ap-buttons">
+            <button id="btn-toggle-help" class="btn btn-help" title="Mostra o nascondi gli aiuti sulla plancia"
+              aria-label="Mostra o nascondi gli aiuti">?</button>
+            <button id="btn-use-adventurer-ability" class="btn btn-ability"
+              title="Usa l'abilità speciale della classe">Usa abilità Avventuriero</button>
+            <button id="btn-end-hero-turn" class="btn btn-action"
+              title="Termina il tuo turno e attiva la fase mostri">Fine Turno Eroe ⏩</button>
+          </div>
+        </div>
+
+        <div id="action-hint" class="action-hint hidden">
+          💡 Clicca sulle caselle dorate per <strong>muoverti</strong> o sui mostri con mirino rosso per
+          <strong>attaccare</strong>. Puoi alternare mosse e attacchi in qualunque ordine!
+        </div>
+
+        <!-- Scheda del Mostro Attivo del Livello -->
+        <div id="monster-inspector" class="monster-inspector">
+          <div class="inspector-header">
+            <span id="insp-icon" class="insp-icon">🕷️</span>
+            <div>
+              <strong id="insp-name">Ragno Gigante</strong>
+              <span id="insp-level-tag" class="badge-mini">Livelli 1, 5, 9</span>
+              <div class="monster-stat-grid">
+                <div class="monster-stat-box monster-hp-stat"><span class="monster-stat-icon">❤️</span><span
+                    class="monster-stat-label">Salute</span><strong id="insp-hp">2</strong></div>
+                <div class="monster-stat-box"><span class="monster-stat-icon">🏃</span><span
+                    class="monster-stat-label">Movimento</span><strong id="insp-spd">5</strong></div>
+                <div class="monster-stat-box"><span class="monster-stat-icon">⚔️</span><span
+                    class="monster-stat-label">Attacco</span><strong id="insp-atk">4</strong></div>
+                <div class="monster-stat-box"><span class="monster-stat-icon">🛡️</span><span
+                    class="monster-stat-label">Difesa</span><strong id="insp-def">4</strong></div>
+                <div class="monster-stat-box"><span class="monster-stat-icon">🏹</span><span
+                    class="monster-stat-label">Gittata</span><strong id="insp-rng">3</strong></div>
+              </div>
+            </div>
+            <span id="dungeon-status" class="status-tag monster-status">Nemici Rimasti: 2</span>
+          </div>
+          <div id="insp-combat-hint" class="insp-hint">
+            💡 Gittata 3: per colpire deve essere a distanza ≤ 3 punti (ortogonale 2, diagonale 3).
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Area Destra: Pannello di Controllo -->
+      <section id="control-panel" class="panel control-panel">
+
+        <!-- Scheda Statistiche Avventuriero -->
+        <div class="card hero-sheet">
+          <div class="card-header">
+            <h2>🛡️ Scheda Avventuriero</h2>
+            <span class="health-badge" id="hero-hp-badge">HP: 6 / 6</span>
+          </div>
+
+          <div class="stats-grid stats-grid-5">
+            <!-- RIGA 1: Dadi Bianchi - Abilità Base Permanenti -->
+            <!-- Salute (Dado Verde d6) -->
+            <div class="stat-box hp-box" title="Salute dell'Avventuriero (Dado Verde da 1 a 6)">
+              <span class="stat-icon">❤️</span>
+              <div class="stat-details">
+                <span class="stat-name">Salute</span>
+                <span class="stat-val" id="stat-hp">6</span>
+              </div>
+            </div>
+
+            <!-- Movimento (Dado Bianco) -->
+            <div class="stat-box" title="Movimento base permanente (Dado Bianco: ortogonale 2, diagonale 3)">
+              <span class="stat-icon">🏃</span>
+              <div class="stat-details">
+                <span class="stat-name">Movimento</span>
+                <span class="stat-val" id="stat-speed">1</span>
+                <div id="assign-speed" class="stat-assignment-slot" data-ability="speed"></div>
+              </div>
+            </div>
+
+            <!-- Attacco (Dado Bianco) -->
+            <div class="stat-box" title="Attacco base permanente (Dado Bianco)">
+              <span class="stat-icon">⚔️</span>
+              <div class="stat-details">
+                <span class="stat-name">Attacco</span>
+                <span class="stat-val" id="stat-attack">1</span>
+                <div id="assign-attack" class="stat-assignment-slot" data-ability="attack"></div>
+              </div>
+            </div>
+
+            <!-- Difesa (Dado Bianco) -->
+            <div class="stat-box" title="Difesa base permanente (Dado Bianco)">
+              <span class="stat-icon">🛡️</span>
+              <div class="stat-details">
+                <span class="stat-name">Difesa</span>
+                <span class="stat-val" id="stat-defense">1</span>
+                <div id="assign-defense" class="stat-assignment-slot" data-ability="defense"></div>
+              </div>
+            </div>
+
+            <!-- Gittata (Dado Bianco) -->
+            <div class="stat-box" title="Gittata permanente (Dado Bianco: 2 = solo ortogonale, 3 = diagonale)">
+              <span class="stat-icon">🏹</span>
+              <div class="stat-details">
+                <span class="stat-name">Gittata</span>
+                <span class="stat-val" id="stat-range">2</span>
+              </div>
+            </div>
+
+            <!-- RIGA 2: Striscia dei 3 Valori Modificati del Turno (Allineati a Movimento, Attacco, Difesa) -->
+            <div class="stat-box-label" title="Valori del turno calcolati sommando il dado nero assegnato">
+              <span class="mini-label">Modificati<br>Turno:</span>
+            </div>
+
+            <!-- Movimento Modificato (Allineato a Movimento) -->
+            <div class="stat-box turn-stat-box" id="box-turn-speed"
+              title="Movimento totale del turno (Base + Dado Energia)">
+              <span class="stat-icon">⚡</span>
+              <div class="stat-details">
+                <span class="stat-name">Movimento Turno</span>
+                <span class="stat-val highlight-val" id="stat-turn-speed">-</span>
+              </div>
+            </div>
+
+            <!-- Attacco Modificato (Allineato a Attacco) -->
+            <div class="stat-box turn-stat-box" id="box-turn-attack"
+              title="Attacco totale del turno (Base + Dado Energia)">
+              <span class="stat-icon">⚡</span>
+              <div class="stat-details">
+                <span class="stat-name">Attacco Turno</span>
+                <span class="stat-val highlight-val" id="stat-turn-attack">-</span>
+              </div>
+            </div>
+
+            <!-- Difesa Modificata (Allineato a Difesa) -->
+            <div class="stat-box turn-stat-box" id="box-turn-defense"
+              title="Difesa totale del turno (Base + Dado Energia)">
+              <span class="stat-icon">⚡</span>
+              <div class="stat-details">
+                <span class="stat-name">Difesa Turno</span>
+                <span class="stat-val highlight-val" id="stat-turn-defense">-</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Sezione Dadi Energia (Neri) -->
+        <div class="card energy-card">
+          <div class="card-header">
+            <div class="dice-controls">
+              <button id="btn-roll-dice" class="btn btn-action">Lancia dadi</button>
+              <button id="btn-confirm-turn" class="btn btn-confirm-assignment" disabled>Conferma</button>
+              <button id="btn-clear-assignment" class="btn btn-cancel-assignment" disabled>Annulla</button>
+            </div>
+          </div>
+
+          <!-- Pool dei 3 Dadi Neri -->
+          <div class="dice-pool">
+            <div class="die-slot" data-index="0">
+              <div class="die energy-die" id="die-0">
+                <span class="die-val">?</span>
+              </div>
+              <span class="die-caption">Dado 1</span>
+            </div>
+
+            <div class="die-slot" data-index="1">
+              <div class="die energy-die" id="die-1">
+                <span class="die-val">?</span>
+              </div>
+              <span class="die-caption">Dado 2</span>
+            </div>
+
+            <div class="die-slot" data-index="2">
+              <div class="die energy-die" id="die-2">
+                <span class="die-val">?</span>
+              </div>
+              <span class="die-caption">Dado 3</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Registro Eventi / Log di Gioco -->
+        <div class="card log-card">
+          <div class="card-header">
+            <h2>📜 Registro delle Azioni</h2>
+            <button id="btn-clear-log" class="btn-subtle" title="Pulisci log">Pulisci</button>
+          </div>
+          <div id="game-log" class="log-stream">
+            <!-- Messaggi aggiunti dinamicamente -->
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+    <!-- ====================================================================
+         MODALI (POPUP) DI GIOCO
+         ==================================================================== -->
+
+    <!-- Modale Scelta Classe (All'avvio) -->
+    <div id="modal-class-select" class="modal-backdrop">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h2>🛡️ Scegli la tua Classe</h2>
+          <p>Seleziona l'avventuriero con cui scendere nel dungeon (Regole Ufficiali):</p>
+        </div>
+        <div class="class-options">
+          <button class="class-card-btn selected" data-class="Warrior">
+            <span class="class-icon">⚔️</span>
+            <strong>Guerriero</strong>
+            <small>Avventuriero Standard (Partita Classica)</small>
+          </button>
+          <button class="class-card-btn" data-class="Paladin">
+            <span class="class-icon">✨</span>
+            <strong>Paladino</strong>
+            <small>Una volta per livello, puoi conservare un dado energia dal turno precedente.</small>
+          </button>
+          <button class="class-card-btn" data-class="Barbarian">
+            <span class="class-icon">🪓</span>
+            <strong>Barbaro</strong>
+            <small>A 1 punto vita, puoi ritirare tutti i dadi una volta per turno.</small>
+          </button>
+          <button class="class-card-btn" data-class="Ranger">
+            <span class="class-icon">🏹</span>
+            <strong>Ranger</strong>
+            <small>Una volta per livello, puoi assegnare un dado alla Gittata anziché al Movimento.</small>
+          </button>
+          <button class="class-card-btn" data-class="Wizard">
+            <span class="class-icon">🔮</span>
+            <strong>Mago</strong>
+            <small>Una volta per livello, puoi ritirare tutti i 3 dadi Energia.</small>
+          </button>
+        </div>
+        <button id="btn-start-game" class="btn btn-action" style="margin-top: 1rem;">
+          Inizia la Discesa nel Dungeon!
+        </button>
+        <button id="btn-new-from-sheet-start" class="btn btn-secondary">
+          Riprendi da situazione annotata
+        </button>
+      </div>
+    </div>
+
+    <div id="modal-existing-situation" class="modal-backdrop hidden">
+      <div class="modal-dialog situation-dialog">
+        <div class="modal-header">
+          <h2>Riprendi da situazione</h2>
+          <p>Inserisci i valori annotati sul foglio della partita.</p>
+        </div>
+        <div class="situation-grid">
+          <label>HP <input id="situation-hp" type="number" min="1" max="6" value="6"></label>
+          <label>Movimento <input id="situation-speed" type="number" min="1" value="1"></label>
+          <label>Attacco <input id="situation-attack" type="number" min="1" value="1"></label>
+          <label>Difesa <input id="situation-defense" type="number" min="1" value="1"></label>
+          <label>Gittata <input id="situation-range" type="number" min="1" value="2"></label>
+          <label>Livello <input id="situation-level" type="number" min="1" max="12" value="1"></label>
+          <label>Classe
+            <select id="situation-class">
+              <option value="Warrior">Guerriero</option>
+              <option value="Paladin">Paladino</option>
+              <option value="Barbarian">Barbaro</option>
+              <option value="Ranger">Ranger</option>
+              <option value="Wizard">Mago</option>
+            </select>
+          </label>
+        </div>
+        <div class="confirm-buttons">
+          <button id="btn-cancel-situation" class="btn btn-secondary">Annulla</button>
+          <button id="btn-start-situation" class="btn btn-action">Inizia da situazione</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-save-files" class="modal-backdrop hidden">
+      <div class="modal-dialog situation-dialog">
+        <div class="modal-header">
+          <h2>Carica partita</h2>
+          <p id="save-files-status">Seleziona un file salvato.</p>
+        </div>
+        <div id="save-files-list" class="save-files-list"></div>
+        <button id="btn-cancel-save-files" class="btn btn-secondary">Annulla</button>
+      </div>
+    </div>
+
+    <!-- Modale Level Up Ufficiale (Cura Completa o Upgrade) -->
+    <div id="modal-upgrade" class="modal-backdrop hidden">
+      <div class="modal-dialog">
+        <div class="modal-header">
+          <h2>🎉 Livello Completato!</h2>
+          <p>Tutti i mostri del piano sono stati sconfitti. Come da regolamento ufficiale, scegli <strong>una sola
+              opzione</strong> prima di procedere:</p>
+        </div>
+        <div class="upgrade-options">
+          <div class="upgrade-col">
+            <h3>Opzione A: Potenzia Abilità (+1)</h3>
+            <div class="stat-upgrade-grid">
+              <button class="upgrade-btn" data-choice="speed">
+                <span class="upgrade-icon">🏃</span>
+                <strong>+1 Movimento</strong>
+                <small>Aumenta il movimento base</small>
+              </button>
+              <button class="upgrade-btn" data-choice="attack">
+                <span class="upgrade-icon">⚔️</span>
+                <strong>+1 Attacco</strong>
+                <small>Aumenta l'attacco base</small>
+              </button>
+              <button class="upgrade-btn" data-choice="defense">
+                <span class="upgrade-icon">🛡️</span>
+                <strong>+1 Difesa</strong>
+                <small>Aumenta la difesa base</small>
+              </button>
+              <button class="upgrade-btn" data-choice="range">
+                <span class="upgrade-icon">🏹</span>
+                <strong>+1 Gittata</strong>
+                <small>Permette attacchi diagonali e a maggior raggio</small>
+              </button>
+            </div>
+          </div>
+
+          <div class="upgrade-col">
+            <h3>Opzione B: Riposo Completo</h3>
+            <button class="upgrade-btn heal-full-btn" data-choice="heal_full">
+              <span class="upgrade-icon">💖</span>
+              <strong>Cura Completa (6 HP)</strong>
+              <small>Ripristina la salute dell'avventuriero al massimo (6 HP)</small>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modale Conferma Azione (Movimento, Attacco, Fine Turno, Upgrade) -->
+    <div id="modal-action-confirm" class="modal-backdrop hidden">
+      <div class="modal-dialog confirm-dialog">
+        <div class="confirm-icon" id="confirm-icon">❓</div>
+        <h3 id="confirm-title">Conferma Azione</h3>
+        <p id="confirm-desc">Sei sicuro di voler procedere con questa azione?</p>
+        <div class="confirm-buttons">
+          <button id="btn-cancel-action" class="btn btn-secondary">
+            ↩️ Annulla (Ripensaci)
+          </button>
+          <button id="btn-execute-action" class="btn btn-action">
+            ✅ Conferma Azione
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modale Game Over -->
+    <div id="modal-game-over" class="modal-backdrop hidden">
+      <div class="modal-dialog game-over-dialog">
+        <h2>💀 SEI MORTO!</h2>
+        <p>I mostri del dungeon hanno azzerato la tua salute.</p>
+        <div class="game-over-stats">
+          <span>Livello raggiunto: <strong id="go-level">1</strong> / 12</span>
+        </div>
+        <button id="btn-restart-game" class="btn btn-action">Ricomincia l'Avventura</button>
+      </div>
+    </div>
+
+    <div id="enemy-attack-notice" class="enemy-attack-notice hidden" aria-live="polite">
+      <strong id="enemy-attack-title">Turno dei nemici</strong>
+      <span id="enemy-attack-detail"></span>
+    </div>
+
+    <!-- Modale Vittoria Finale -->
+    <div id="modal-victory" class="modal-backdrop hidden">
+      <div class="modal-dialog victory-dialog">
+        <h2>🏆 VITTORIA SUPREMA!</h2>
+        <p>Hai sconfitto tutti i Demoni del 12° Livello e recuperato lo <strong>Scettro di M'Guf-yn</strong>!</p>
+        <p>Hai completato One Card Dungeon secondo le regole ufficiali di Little Rocket Games!</p>
+        <button id="btn-victory-restart" class="btn btn-action">Gioca Ancora</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Script di Gioco: Prima levels.js, poi app.js -->
+  <script src="levels.js?v=2"></script>
+  <script src="app.js?v=17"></script>
+</body>
+
+</html>
