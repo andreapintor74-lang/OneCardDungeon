@@ -425,7 +425,7 @@ const BoardRenderer = {
     }
 
     const aliveCount = gameState.monsters.filter((m) => m.hp > 0).length;
-    document.getElementById("dungeon-status").textContent = `Nemici Rimasti: ${aliveCount}`;
+    document.getElementById("dungeon-status").textContent = aliveCount;
   },
 
   animateCells(cells, className, duration = 520) {
@@ -505,8 +505,13 @@ const AppController = {
     document.getElementById("insp-rng").textContent = m.range;
     document.getElementById("insp-level-tag").textContent = `Livello ${lvl.level}`;
 
-    document.getElementById("insp-combat-hint").textContent =
-      `💡 Gittata Mostro: ${m.range} pt (orto 2, diag 3). Per infliggere 1 danno all'avversario servono ${m.defense} pt attacco.`;
+    // Il suggerimento di combattimento vive nel tooltip della palette Gittata
+    // (su desktop al passaggio del mouse, su mobile al tocco prolungato)
+    const rangeBox = document.getElementById("insp-rng").closest(".monster-stat-box");
+    if (rangeBox) {
+      rangeBox.title =
+        `💡 Gittata Mostro: ${m.range} pt (orto 2, diag 3). Per infliggere 1 danno all'avversario servono ${m.defense} pt attacco.`;
+    }
   },
 
   bindEvents() {
@@ -533,23 +538,26 @@ const AppController = {
       btnRoll.addEventListener("click", () => this.handleRollDice());
     }
 
-    // 3. Assegnazione Dadi tramite trascinamento
+    // 3. Assegnazione Dadi: trascinamento personalizzato (pointer events,
+    //    funziona con mouse, tocco e dentro webview/iframe) + tap-to-assign
     document.querySelectorAll(".energy-die").forEach((die) => {
-      die.addEventListener("dragstart", (event) => this.handleDieDragStart(event));
-      die.addEventListener("dragend", (event) => event.currentTarget.classList.remove("dragging"));
+      die.addEventListener("pointerdown", (event) => this.handleDiePointerDown(event, Number(die.id.replace("die-", ""))));
+      die.addEventListener("click", () => {
+        if (Date.now() < (this._suppressClickUntil || 0)) return;
+        this.selectDieForAssignment(Number(die.id.replace("die-", "")));
+      });
     });
     document.querySelectorAll(".stat-assignment-slot").forEach((zone) => {
-      zone.addEventListener("dragover", (event) => {
-        if (gameState.turn.phase !== "ASSIGNMENT") return;
-        event.preventDefault();
-        zone.classList.add("drag-over");
-      });
-      zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-      zone.addEventListener("drop", (event) => {
-        event.preventDefault();
-        zone.classList.remove("drag-over");
-        const index = Number(event.dataTransfer.getData("text/plain"));
-        this.assignDieToAbility(index, zone.dataset.ability);
+      // Il tap-to-assign sta sull'intera palette (.stat-box), non solo sullo slot overlay
+      const dropTarget = zone.closest(".stat-box") || zone;
+      dropTarget.addEventListener("click", (event) => {
+        if (Date.now() < (this._suppressClickUntil || 0)) return;
+        if (gameState.turn.phase !== "ASSIGNMENT" || zone.classList.contains("hidden")) return;
+        if (event.target.closest(".assigned-die")) return;
+        if (this.selectedDieIndex === null || this.selectedDieIndex === undefined) return;
+        this.assignDieToAbility(this.selectedDieIndex, zone.dataset.ability);
+        this.selectedDieIndex = null;
+        this.renderDiceAssignments();
       });
     });
 
@@ -745,7 +753,7 @@ const AppController = {
       this.updateAdventurerAbilityButton();
       document.getElementById("btn-toggle-help").disabled = true;
       document.getElementById("btn-end-hero-turn").disabled = true;
-      this.log("Assegna un dado a Movimento, uno ad Attacco e uno a Difesa.", "info");
+      this.log("Assegna un dado a Movimento, uno ad Attacco e uno a Difesa: trascina il dado oppure tocca il dado e poi la casella.", "info");
     });
   },
 
@@ -887,6 +895,65 @@ const AppController = {
     event.currentTarget.classList.add("dragging");
   },
 
+  /* --- Trascinamento personalizzato (Pointer Events) --- */
+  handleDiePointerDown(event, index) {
+    if (gameState.turn.phase !== "ASSIGNMENT") return;
+    if (event.button !== undefined && event.button !== 0) return;
+    this.pointerDrag = { index, startX: event.clientX, startY: event.clientY, moved: false, ghost: null };
+    this._boundDragMove = (e) => this.handleDiePointerMove(e);
+    this._boundDragEnd = (e) => this.handleDiePointerUp(e);
+    window.addEventListener("pointermove", this._boundDragMove);
+    window.addEventListener("pointerup", this._boundDragEnd);
+    window.addEventListener("pointercancel", this._boundDragEnd);
+  },
+
+  handleDiePointerMove(event) {
+    const drag = this.pointerDrag;
+    if (!drag) return;
+    if (!drag.moved) {
+      if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 7) return;
+      drag.moved = true;
+      const ghost = document.createElement("div");
+      ghost.className = "die energy-die die-ghost";
+      ghost.textContent = gameState.turn.energyDice[drag.index];
+      document.body.appendChild(ghost);
+      drag.ghost = ghost;
+    }
+    drag.ghost.style.left = `${event.clientX}px`;
+    drag.ghost.style.top = `${event.clientY}px`;
+    const el = document.elementFromPoint(event.clientX, event.clientY);
+    const zone = el ? el.closest(".stat-assignment-slot") : null;
+    document.querySelectorAll(".stat-assignment-slot.drag-over").forEach((z) => z.classList.remove("drag-over"));
+    if (zone && !zone.classList.contains("hidden")) zone.classList.add("drag-over");
+  },
+
+  handleDiePointerUp(event) {
+    const drag = this.pointerDrag;
+    if (!drag) return;
+    window.removeEventListener("pointermove", this._boundDragMove);
+    window.removeEventListener("pointerup", this._boundDragEnd);
+    window.removeEventListener("pointercancel", this._boundDragEnd);
+    this.pointerDrag = null;
+    document.querySelectorAll(".stat-assignment-slot.drag-over").forEach((z) => z.classList.remove("drag-over"));
+    if (!drag.moved) return; // semplice tocco: lo gestisce il click (tap-to-assign)
+    // Dopo un trascinamento sopprimi per 350ms qualunque click residuo
+    // (potrebbe arrivare su un elemento diverso da quello di partenza)
+    this._suppressClickUntil = Date.now() + 350;
+    if (drag.ghost) drag.ghost.remove();
+    const el = document.elementFromPoint(event.clientX, event.clientY);
+    const zone = el ? el.closest(".stat-assignment-slot") : null;
+    if (zone && !zone.classList.contains("hidden")) {
+      this.assignDieToAbility(drag.index, zone.dataset.ability);
+      this.selectedDieIndex = null;
+    }
+  },
+
+  selectDieForAssignment(index) {
+    if (gameState.turn.phase !== "ASSIGNMENT") return;
+    this.selectedDieIndex = this.selectedDieIndex === index ? null : index;
+    this.renderDiceAssignments();
+  },
+
   assignDieToAbility(index, ability) {
     const validAbility = ["speed", "attack", "defense"].includes(ability) ||
       (ability === "range" && gameState.heroClass === "Ranger" && gameState.turn.rangerAbilityActiveThisTurn);
@@ -916,6 +983,10 @@ const AppController = {
     const abilityIds = { speed: "assign-speed", attack: "assign-attack", defense: "assign-defense", range: "assign-range" };
     const assigned = gameState.turn.assignedDice;
 
+    // Evidenzia le palette come zone di arrivo attive durante la fase di assegnazione
+    document.body.classList.toggle("dice-assignment-active", gameState.turn.phase === "ASSIGNMENT");
+    if (gameState.turn.phase !== "ASSIGNMENT") this.selectedDieIndex = null;
+
     Object.entries(abilityIds).forEach(([ability, id]) => {
       const zone = document.getElementById(id);
       if (!zone) return;
@@ -924,11 +995,16 @@ const AppController = {
       if (index === null || gameState.turn.energyDice[index] === null) return;
       const die = document.createElement("div");
       die.className = "assigned-die";
-      die.draggable = gameState.turn.phase === "ASSIGNMENT";
+      die.draggable = false;
       die.dataset.index = index;
       die.textContent = `+${gameState.turn.energyDice[index]}`;
-      die.addEventListener("dragstart", (event) => this.handleDieDragStart(event));
-      die.addEventListener("dragend", (event) => event.currentTarget.classList.remove("dragging"));
+      if (index === this.selectedDieIndex) die.classList.add("selected");
+      die.addEventListener("pointerdown", (event) => this.handleDiePointerDown(event, index));
+      die.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (Date.now() < (this._suppressClickUntil || 0)) return;
+        this.selectDieForAssignment(index);
+      });
       zone.appendChild(die);
     });
 
@@ -936,7 +1012,8 @@ const AppController = {
       const index = Number(die.id.replace("die-", ""));
       const used = Object.values(assigned).includes(index);
       die.classList.toggle("used", used);
-      die.draggable = gameState.turn.phase === "ASSIGNMENT";
+      die.classList.toggle("selected", index === this.selectedDieIndex);
+      die.draggable = false;
     });
     this.updateAssignmentTotals();
   },
@@ -1706,6 +1783,19 @@ const AppController = {
 /* ==========================================================================
    6. AVVIO
    ========================================================================== */
+
+// Su schermi piccoli accorcia i testi dei pulsanti per risparmiare spazio
+function applyCompactButtonLabels() {
+  const compact = window.matchMedia("(max-width: 768px)").matches;
+  const endTurnBtn = document.getElementById("btn-end-hero-turn");
+  if (endTurnBtn) endTurnBtn.textContent = compact ? "Fine ⏩" : "Fine Turno Eroe ⏩";
+  const abilityBtn = document.getElementById("btn-use-adventurer-ability");
+  if (abilityBtn) abilityBtn.textContent = compact ? "✨ Abilità" : "Usa abilità Avventuriero";
+}
+
+window.addEventListener("resize", applyCompactButtonLabels);
+
 document.addEventListener("DOMContentLoaded", () => {
+  applyCompactButtonLabels();
   AppController.init();
 });

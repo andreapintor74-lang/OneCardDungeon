@@ -432,12 +432,13 @@ body {
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 
-/* Contenitore Griglia */
+/* Contenitore Griglia: sfondo chiaro effetto "carta" per staccare la plancia */
 .board-wrapper {
-  background: transparent;
-  padding: 0.25rem;
+  background: linear-gradient(160deg, #d8ceb4, #c9bda0);
+  padding: 0.4rem;
   border-radius: var(--radius-md);
-  border: 1px solid var(--border-subtle);
+  border: 1px solid #a89a7c;
+  box-shadow: inset 0 0 14px rgba(90, 75, 45, 0.25);
   width: 410px;
   max-width: 100%;
   margin-inline: auto;
@@ -457,10 +458,10 @@ body {
   aspect-ratio: 1 / 1;
 }
 
-/* Celle della griglia */
+/* Celle della griglia: chiare con bordo marcato */
 .cell {
-  background: var(--bg-cell);
-  border: 1px solid var(--border-subtle);
+  background: #efe7d3;
+  border: 1.5px solid #8d8065;
   border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
@@ -473,8 +474,8 @@ body {
 }
 
 .cell:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--border-highlight);
+  background: #f7f0dd;
+  border-color: #5f563f;
 }
 
 .cell .coord-tag {
@@ -529,15 +530,15 @@ body {
   pointer-events: none;
 }
 
-/* Tipi di celle statiche */
+/* Tipi di celle statiche (varianti leggibili sullo sfondo chiaro) */
 .cell.cell-stairs {
-  background: rgba(245, 158, 11, 0.14);
-  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.3);
+  border-color: rgba(180, 120, 10, 0.6);
 }
 
 .cell.cell-wall {
-  background: #1c1f2b;
-  border-color: #31384c;
+  background: #57503f;
+  border-color: #3c372b;
   cursor: not-allowed;
 }
 
@@ -710,6 +711,23 @@ body {
   gap: 0.75rem;
 }
 
+/* Icona del mostro con sotto il numero dei nemici rimasti */
+.insp-icon-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  flex: 0 0 auto;
+}
+
+.insp-icon-col .monster-status {
+  margin-left: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.1;
+  padding: 0.1rem 0.45rem;
+}
+
 .monster-status {
   margin-left: auto;
   align-self: center;
@@ -771,11 +789,6 @@ body {
   color: var(--text-bright);
   font-size: 0.95rem;
   line-height: 1.1;
-}
-
-.insp-hint {
-  font-size: 0.78rem;
-  color: var(--accent-gold);
 }
 
 /* Legenda */
@@ -1034,7 +1047,12 @@ body {
   color: var(--die-text);
   cursor: pointer;
   transition: all 0.2s ease;
+  /* user-select:none rompe l'avvio del drag HTML5 in Chromium:
+     usiamo la variante che blocca solo la selezione tattile */
+  -webkit-user-select: none;
+  -moz-user-select: none;
   user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .die:hover {
@@ -1043,6 +1061,11 @@ body {
 
 .energy-die[draggable="true"] {
   cursor: grab;
+  /* user-select va rimosso dai dadi trascinabili: in Chromium
+     impedisce l'avvio del drag HTML5 (il drop non avviene mai) */
+  -webkit-user-select: auto;
+  -moz-user-select: auto;
+  user-select: auto;
 }
 
 .energy-die.dragging {
@@ -1734,4 +1757,525 @@ body {
     padding: 0.45rem 0.55rem;
     font-size: 0.68rem;
   }
+}
+
+/* ==========================================================================
+   OTTIMIZZAZIONE MOBILE (SMARTPHONE E TOUCH)
+   ========================================================================== */
+
+/* Comportamento touch uniforme: niente zoom al doppio tap, niente alone grigio */
+button,
+.cell,
+.die,
+.class-card-btn,
+.upgrade-btn,
+.save-slot,
+.stat-assignment-slot {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* --- Smartphone e schermi fino a 768px --- */
+@media (max-width: 768px) {
+  body {
+    padding: 0.35rem;
+    padding-bottom: calc(0.35rem + env(safe-area-inset-bottom, 0px));
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  #app {
+    gap: 0.4rem;
+  }
+
+  /* --- Intestazione compatta: titolo e livello sulla stessa riga --- */
+  .game-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.3rem;
+    padding: 0.4rem 0.6rem;
+  }
+
+  .logo-area {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    text-align: center;
+  }
+
+  .logo-area h1 {
+    font-size: 0.92rem;
+    justify-content: center;
+  }
+
+  .logo-area .subtitle {
+    display: none;
+  }
+
+  .header-level-title {
+    margin-top: 0;
+    font-size: 0.72rem;
+  }
+
+  .header-status {
+    justify-content: center;
+    gap: 0.3rem;
+  }
+
+  .header-status .label {
+    font-size: 0.66rem;
+  }
+
+  .save-controls {
+    order: 3;
+    width: auto;
+    flex-wrap: nowrap;
+  }
+
+  /* Solo icone: 4 tasti in una riga. Il testo resta nel tooltip (title)
+     ed è leggibile dagli screen reader grazie allo span nascosto. */
+  .header-button {
+    flex: 0 0 auto;
+    min-width: 40px;
+    min-height: 36px;
+    font-size: 1.05rem;
+    padding: 0.3rem 0.55rem;
+  }
+
+  .header-button .btn-text {
+    display: none;
+  }
+
+  .badge {
+    padding: 0.2rem 0.45rem;
+    font-size: 0.68rem;
+  }
+
+  /* --- Pannelli e carte più snelli --- */
+  .panel {
+    padding: 0.5rem;
+    gap: 0.45rem;
+    border-radius: var(--radius-md);
+  }
+
+  .card {
+    padding: 0.5rem;
+    gap: 0.4rem;
+  }
+
+  .card-header h2 {
+    font-size: 0.85rem;
+  }
+
+  .health-badge {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+  }
+
+  /* --- Plancia a tutta larghezza --- */
+  .board-wrapper {
+    width: 100%;
+    padding: 0.1rem;
+  }
+
+  .dungeon-grid {
+    max-width: 100%;
+    gap: 3px;
+  }
+
+  .cell {
+    font-size: clamp(1.05rem, 5.4vw, 1.5rem);
+    border-radius: 4px;
+  }
+
+  /* Coordinate A1-E5 nascoste per risparmiare spazio visivo */
+  .cell .coord-tag {
+    display: none;
+  }
+
+  .cell-badge {
+    font-size: 0.6rem;
+    padding: 0 4px;
+  }
+
+  .cell-move-cost {
+    font-size: 0.55rem;
+  }
+
+  /* --- Barra azioni: compatta ma tappabile --- */
+  .ap-buttons {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    padding: 0.25rem;
+  }
+
+  .ap-buttons .btn {
+    flex: 1 1 46%;
+    min-height: 38px;
+    font-size: 0.74rem;
+    padding: 0.3rem 0.5rem;
+  }
+
+  .ap-buttons .btn-help {
+    flex: 0 0 38px !important;
+    min-width: 38px !important;
+    min-height: 38px;
+  }
+
+  .action-hint {
+    position: static;
+    margin-top: 0.1rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.68rem;
+    padding: 0.35rem 0.55rem;
+  }
+
+  /* --- Ispettore mostro --- */
+  .monster-inspector {
+    padding: 0.45rem 0.6rem;
+    gap: 0.25rem;
+  }
+
+  .inspector-header {
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .insp-icon {
+    font-size: 1.4rem;
+  }
+
+  .insp-icon-col .monster-status {
+    font-size: 0.9rem;
+    padding: 0 0.4rem;
+  }
+
+  .monster-stat-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0.2rem;
+    margin-top: 0.2rem;
+  }
+
+  .monster-stat-box {
+    min-height: 40px;
+    padding: 0.2rem 0.1rem;
+  }
+
+  .monster-stat-label {
+    font-size: 0.46rem;
+  }
+
+  .monster-stat-box strong {
+    font-size: 0.8rem;
+  }
+
+  /* --- Scheda eroe: 5 "palette" stile scheda mostro --- */
+  .stats-grid-5 {
+    grid-template-columns: repeat(5, 1fr) !important;
+    gap: 0.25rem;
+  }
+
+  .stat-box {
+    position: relative;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    flex-wrap: nowrap;
+    padding: 0.3rem 1.4rem 0.3rem 0.3rem;
+    gap: 0.1rem;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .stat-icon {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .stat-details {
+    flex-direction: column;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    width: 100%;
+    gap: 0.05rem;
+  }
+
+  .stat-details .stat-name {
+    order: 0;
+    flex-basis: auto;
+    font-size: 0.5rem;
+    letter-spacing: 0;
+    text-align: left;
+    line-height: 1.1;
+  }
+
+  .stat-details .stat-val {
+    order: 0;
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  /* L'etichetta "Modificati Turno" resta centrata */
+  .stat-box-label {
+    text-align: center;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .highlight-val {
+    font-size: 1.1rem !important;
+  }
+
+  /* L'intera palette è la zona di arrivo del drag&drop:
+     lo slot copre tutta la casella, il dado assegnato appare nell'angolo */
+  .stat-assignment-slot {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    margin-top: 0;
+    padding: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    background: transparent;
+    border: none;
+    border-radius: inherit;
+    font-size: 0.6rem;
+    z-index: 1;
+  }
+
+  .stat-assignment-slot.drag-over {
+    border: 2px dashed var(--accent-gold);
+    background: rgba(245, 158, 11, 0.16);
+    box-shadow: inset 0 0 10px rgba(245, 158, 11, 0.25);
+  }
+
+  .stat-assignment-slot .assigned-die {
+    position: absolute;
+    top: 50%;
+    right: 2px;
+    transform: translateY(-50%);
+    width: auto;
+    min-height: 0;
+    padding: 0 4px;
+    border-radius: 3px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    line-height: 1.3;
+    background: var(--die-bg);
+    border: 1px solid var(--die-border);
+    color: var(--die-text);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Zone di arrivo visibili durante la fase di assegnazione dadi */
+  .dice-assignment-active .stat-box:has(> .stat-details > .stat-assignment-slot:not(.hidden)) {
+    border: 1px dashed var(--accent-gold);
+    background: rgba(245, 158, 11, 0.1);
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.18);
+    animation: pulseGold 1.3s infinite alternate;
+    cursor: pointer;
+  }
+
+  .dice-assignment-active .stat-assignment-slot {
+    cursor: pointer;
+  }
+
+  /* Riga 2: etichetta stretta + 3 caselle turno (la 5ª colonna resta vuota) */
+  .stat-box-label {
+    padding: 0.1rem;
+  }
+
+  .mini-label {
+    font-size: 0.5rem;
+    line-height: 1.25;
+  }
+
+  /* --- Dadi energia: compatti --- */
+  .dice-pool {
+    gap: 0.9rem;
+    padding: 0.2rem 0;
+  }
+
+  .die-slot {
+    gap: 0.15rem;
+  }
+
+  .die {
+    width: 50px;
+    height: 50px;
+    font-size: 1.55rem;
+    border-radius: 8px;
+  }
+
+  .die-caption {
+    font-size: 0.62rem;
+  }
+
+  .dice-controls .btn {
+    min-height: 36px;
+    font-size: 0.66rem;
+  }
+
+  /* --- Pulsanti generali --- */
+  .btn {
+    min-height: 38px;
+  }
+
+  .btn-subtle {
+    min-height: 28px;
+  }
+
+  /* --- Log più compatto --- */
+  .log-stream {
+    height: 85px;
+    font-size: 0.68rem;
+    padding: 0.35rem 0.5rem;
+    gap: 0.25rem;
+  }
+
+  /* --- Modali in stile "bottom sheet" --- */
+  .modal-backdrop {
+    padding: 0.4rem;
+    padding-bottom: calc(0.4rem + env(safe-area-inset-bottom, 0px));
+    align-items: flex-end;
+  }
+
+  .modal-dialog {
+    padding: 0.85rem 0.8rem;
+    gap: 0.6rem;
+    max-height: calc(100vh - 1rem);
+    max-height: calc(100dvh - 1rem);
+    overflow-y: auto;
+  }
+
+  .modal-header h2 {
+    font-size: 1.05rem;
+  }
+
+  .modal-header p {
+    font-size: 0.78rem;
+  }
+
+  .class-card-btn {
+    padding: 0.45rem 0.6rem;
+    min-height: 44px;
+  }
+
+  .class-card-btn .class-icon {
+    font-size: 1.15rem;
+  }
+
+  .upgrade-btn {
+    padding: 0.5rem 0.4rem;
+    gap: 0.15rem;
+  }
+
+  .heal-full-btn {
+    height: auto;
+  }
+
+  .situation-grid {
+    gap: 0.45rem;
+  }
+
+  .confirm-buttons {
+    flex-wrap: wrap;
+    gap: 0.45rem;
+  }
+
+  .confirm-buttons .btn {
+    flex: 1 1 100%;
+  }
+
+  /* Input con font >= 16px: evita lo zoom automatico su iOS */
+  .situation-grid input,
+  .situation-grid select,
+  .save-name-field input {
+    font-size: 16px;
+  }
+
+  /* Notifica attacchi nemici a tutta larghezza */
+  .enemy-attack-notice {
+    left: 0.4rem;
+    right: 0.4rem;
+    bottom: calc(0.4rem + env(safe-area-inset-bottom, 0px));
+    width: auto;
+  }
+}
+
+/* --- Smartphone molto piccoli (fino a 380px) --- */
+@media (max-width: 380px) {
+  .dungeon-grid {
+    gap: 2px;
+  }
+
+  .die {
+    width: 46px;
+    height: 46px;
+  }
+
+  .stats-grid-5 {
+    gap: 0.25rem;
+  }
+}
+
+/* --- Dispositivi touch: niente stati hover "appiccicosi" dopo il tap --- */
+@media (hover: none) {
+  .cell:hover {
+    background: var(--bg-cell);
+    border-color: var(--border-subtle);
+    transform: none;
+  }
+
+  .cell.reachable:hover {
+    background: rgba(245, 158, 11, 0.24) !important;
+    transform: none;
+  }
+
+  .cell.attackable:hover {
+    background: rgba(239, 68, 68, 0.38) !important;
+    transform: none;
+  }
+
+  .die:hover {
+    transform: none;
+  }
+
+  .header-button:hover,
+  .btn-action:hover:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* --- Selezione dadi per assegnazione tattile (vale su ogni schermo) --- */
+.energy-die.selected,
+.assigned-die.selected {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: 2px;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.7);
+}
+
+/* --- Trascinamento personalizzato dei dadi (Pointer Events) --- */
+.die-ghost {
+  position: fixed;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 3000;
+  opacity: 0.85;
+  margin: 0;
+}
+
+/* Durante l'assegnazione i dadi catturano il gesto: niente scroll sul tocco */
+body.dice-assignment-active .energy-die,
+body.dice-assignment-active .assigned-die {
+  touch-action: none;
+  cursor: grab;
 }

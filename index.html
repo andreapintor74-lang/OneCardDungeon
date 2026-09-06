@@ -3,9 +3,10 @@
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0c0e14">
   <title>One Card Dungeon - Solitario Ufficiale Little Rocket Games</title>
-  <link rel="stylesheet" href="style.css?v=29">
+  <link rel="stylesheet" href="style.css?v=46">
 </head>
 
 <body>
@@ -19,11 +20,15 @@
       </div>
       <div class="header-status">
         <div class="save-controls">
-          <button id="btn-save-game" class="header-button" title="Salva partita">💾 Salva</button>
-          <button id="btn-load-game" class="header-button" title="Carica partita">↥ Carica</button>
-          <button id="btn-new-game" class="header-button" title="Inizia una nuova partita">＋ Nuova</button>
-          <button id="btn-new-from-sheet" class="header-button" title="Riprendi da una situazione annotata">＋ Da
-            situazione</button>
+          <button id="btn-save-game" class="header-button" title="Salva partita">💾 <span
+              class="btn-text">Salva</span></button>
+          <button id="btn-load-game" class="header-button" title="Carica partita">↥ <span
+              class="btn-text">Carica</span></button>
+          <button id="btn-new-game" class="header-button" title="Inizia una nuova partita">＋ <span
+              class="btn-text">Nuova</span></button>
+          <button id="btn-new-from-sheet" class="header-button"
+            title="Riprendi da una situazione annotata sul foglio">📋 <span class="btn-text">Da
+              situazione</span></button>
         </div>
         <div class="level-indicator">
           <span class="label">Carta:</span>
@@ -71,7 +76,11 @@
         <!-- Scheda del Mostro Attivo del Livello -->
         <div id="monster-inspector" class="monster-inspector">
           <div class="inspector-header">
-            <span id="insp-icon" class="insp-icon">🕷️</span>
+            <div class="insp-icon-col">
+              <span id="insp-icon" class="insp-icon">🕷️</span>
+              <strong id="dungeon-status" class="status-tag monster-status"
+                title="Nemici rimasti nel livello">2</strong>
+            </div>
             <div>
               <strong id="insp-name">Ragno Gigante</strong>
               <span id="insp-level-tag" class="badge-mini">Livelli 1, 5, 9</span>
@@ -88,10 +97,6 @@
                     class="monster-stat-label">Gittata</span><strong id="insp-rng">3</strong></div>
               </div>
             </div>
-            <span id="dungeon-status" class="status-tag monster-status">Nemici Rimasti: 2</span>
-          </div>
-          <div id="insp-combat-hint" class="insp-hint">
-            💡 Gittata 3: per colpire deve essere a distanza ≤ 3 punti (ortogonale 2, diagonale 3).
           </div>
         </div>
 
@@ -166,7 +171,6 @@
             <!-- Movimento Modificato (Allineato a Movimento) -->
             <div class="stat-box turn-stat-box" id="box-turn-speed"
               title="Movimento totale del turno (Base + Dado Energia)">
-              <span class="stat-icon">⚡</span>
               <div class="stat-details">
                 <span class="stat-name">Movimento Turno</span>
                 <span class="stat-val highlight-val" id="stat-turn-speed">-</span>
@@ -176,7 +180,6 @@
             <!-- Attacco Modificato (Allineato a Attacco) -->
             <div class="stat-box turn-stat-box" id="box-turn-attack"
               title="Attacco totale del turno (Base + Dado Energia)">
-              <span class="stat-icon">⚡</span>
               <div class="stat-details">
                 <span class="stat-name">Attacco Turno</span>
                 <span class="stat-val highlight-val" id="stat-turn-attack">-</span>
@@ -186,7 +189,6 @@
             <!-- Difesa Modificata (Allineato a Difesa) -->
             <div class="stat-box turn-stat-box" id="box-turn-defense"
               title="Difesa totale del turno (Base + Dado Energia)">
-              <span class="stat-icon">⚡</span>
               <div class="stat-details">
                 <span class="stat-name">Difesa Turno</span>
                 <span class="stat-val highlight-val" id="stat-turn-defense">-</span>
@@ -476,7 +478,7 @@
 
   <!-- Script di Gioco: Prima levels.js, poi app.js -->
   <script src="levels.js?v=2"></script>
-  <script src="app.js?v=28"></script>
+  <script src="app.js?v=37"></script>
 </body>
 
 </html>
